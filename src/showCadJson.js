@@ -10,7 +10,7 @@ const colorsMapper = require('autocad-colors-index');
 const FontData = require('../res/fonts/ttf/simhei.ttf');
 const TTFLoader = require('../lib/TTFLoader');
 function showCadJson(){
-    
+      
     var scene;
     var camera;
     var render;
