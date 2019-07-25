@@ -5,12 +5,24 @@ const Stats = require('../lib/stats');
 const OrbitControls = require('../lib/OrbitControls');
 const data = require('../res/data/dxfdata.json');
 const colorsMapper = require('autocad-colors-index');
-//const FontData = require('../res/fonts/json/BenMoJSON.json');
-//const FontData = require('../res/fonts/ttf/BenMoTTF.ttf');
-const FontData = require('../res/fonts/ttf/simhei.ttf');
+
+//const FontDataJSON = require('../res/fonts/json/BenMoJSON.json');
+const FontDataJSON = require('../res/fonts/json/fzyt.json');
+//const FontDataJSON = require('../res/fonts/json/helvetiker_regular.typeface.json');
+
+//const FontDataTTF = require('../res/fonts/ttf/BenMoTTF.ttf');
+//const FontDataTTF = require('../res/fonts/ttf/simhei.ttf');
+//const FontDataTTF = require('../res/fonts/ttf/arial.ttf');
+//const FontDataTTF = require('../res/fonts/ttf/fzyt.ttf');
+
+const FontDataTTF = require('../res/fonts/ttf/songti.ttf');
+
 const TTFLoader = require('../lib/TTFLoader');
+
+
 function showCadJson(){
-      
+
+
     var scene;
     var camera;
     var render;
@@ -18,20 +30,10 @@ function showCadJson(){
     //var canvasRender;
     var controls;
     var stats;
-    var guiParams;
+    var font;
+
     
-    var ground;
-    //var cube;
-    //var sphere;
-    var plane;
-    
-    var meshMaterial;
-    
-    var ambientLight;
-    var spotLight;
-    var boxHelper = new THREE.BoxHelper();
-    //var cameraHelper;
-    
+
     window.onload=function(){
         stats = initStats();
        
@@ -42,18 +44,37 @@ function showCadJson(){
         //坐标轴
         initAxis();
     
-        loadData(data);
-    
-    
-    
-        
        
     
+
+        var promise = runAsync().then(function () {
+            
+            loadData(data);
+            
+        });
+
     
-    
+
         
         renderScene();
     }
+   
+
+    function runAsync () {
+            var loader = new TTFLoader();
+            var fontLoader = new THREE.FontLoader();
+            var promise = new Promise(function (resolve, reject) {
+                
+            loader.load(FontDataTTF,function(fnt){
+                font = fontLoader.parse(fnt);
+                resolve(font);
+            }); 
+            });
+            return promise;
+    }
+        
+
+
 
 
     function loadData(data){
@@ -118,11 +139,13 @@ function showCadJson(){
                     var context = element.simplifiedText;
                     var size = element.size;
                     generateText(context,size,color,matrix);
+    
                     break;
                 case "DxfText":
                     var context = element.simplifiedText;
                     var size = element.size;
                     generateText(context,size,color,matrix);
+
                     break;
                 default:
                     console.log('not exist'+element.type);
@@ -218,7 +241,6 @@ function showCadJson(){
     function renderScene() {
         stats.update();
         //rotateMesh(); // 旋转物体
-        boxHelper.update();
         requestAnimationFrame(renderScene);
         render.render(scene, camera);
     }
@@ -335,29 +357,35 @@ function showCadJson(){
     //生成文字
     function generateText(context,size,color,matrix){
     
-        var loader = new TTFLoader();
-        var fontLoader = new THREE.FontLoader()
-        loader.load(FontData,function(fnt){
+        //TTF读取方法
 
-
-            var font = fontLoader.parse(fnt)
-            var material = new THREE.MeshBasicMaterial( {color: color});
+        var material = new THREE.MeshBasicMaterial( {color: color});
     
-            var shapes = font.generateShapes( context, size );
-            var geometry = new THREE.ShapeBufferGeometry( shapes );
+        var shapes = font.generateShapes( context, size );
+        var geometry = new THREE.ShapeBufferGeometry( shapes );
+   
+        var mesh = new THREE.Mesh( geometry, material );
+        
+        mesh.applyMatrix(matrix)
+        scene.add( mesh ); 
+
+
+
+
+
+        //JSON读取方法
        
-            var mesh = new THREE.Mesh( geometry, material );
-            
-            mesh.applyMatrix(matrix)
-            scene.add( mesh );
+  /*    var material = new THREE.MeshBasicMaterial({color: color});
 
-
-        })
-
-    
+        var shapes = new THREE.Font(FontDataJSON).generateShapes( context, size );
+        var geometry = new THREE.ShapeBufferGeometry( shapes );
+   
+        var mesh = new THREE.Mesh( geometry, material );
+        
+        mesh.applyMatrix(matrix)
+        scene.add( mesh );
   
-    
-    
+     */
     }
     
     
