@@ -138,7 +138,7 @@ function showCadJson(){
                 case "DxfMText":
                     var context = element.simplifiedText;
                     var size = element.size;
-                    generateText(context,size,color,matrix);
+                    generateText(context,size,color,matrix,element.boxWidth,element.boxHeight);
     
                     break;
                 case "DxfText":
@@ -355,7 +355,7 @@ function showCadJson(){
     
     
     //生成文字
-    function generateText(context,size,color,matrix){
+    function generateText(context,size,color,matrix,boxWidth,boxHeight){
     
         //TTF读取方法
 
@@ -366,6 +366,11 @@ function showCadJson(){
    
         var mesh = new THREE.Mesh( geometry, material );
         
+        if(context == "图 纸 目 录"){
+            mesh.translateX(-boxWidth/2);
+            mesh.translateY(-boxHeight/2);
+        }
+
         mesh.applyMatrix(matrix)
         scene.add( mesh ); 
 
