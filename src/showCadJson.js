@@ -5,19 +5,16 @@ const Stats = require('../lib/stats');
 const OrbitControls = require('../lib/OrbitControls');
 const data = require('../res/data/dxfdata.json');
 const colorsMapper = require('autocad-colors-index');
+const TTFLoader = require('../lib/TTFLoader');
 
 //const FontDataJSON = require('../res/fonts/json/BenMoJSON.json');
-const FontDataJSON = require('../res/fonts/json/fzyt.json');
+//const FontDataJSON = require('../res/fonts/json/fzyt.json');
 //const FontDataJSON = require('../res/fonts/json/helvetiker_regular.typeface.json');
 
-//const FontDataTTF = require('../res/fonts/ttf/BenMoTTF.ttf');
-//const FontDataTTF = require('../res/fonts/ttf/simhei.ttf');
-//const FontDataTTF = require('../res/fonts/ttf/arial.ttf');
-//const FontDataTTF = require('../res/fonts/ttf/fzyt.ttf');
+const FontDataSimsun = require('../res/fonts/ttf/simsun.ttf');
+const FontDataHeiti = require('../res/fonts/ttf/heiti.ttf');
 
-const FontDataTTF = require('../res/fonts/ttf/songti.ttf');
 
-const TTFLoader = require('../lib/TTFLoader');
 
 
 function showCadJson(){
@@ -30,7 +27,11 @@ function showCadJson(){
     //var canvasRender;
     var controls;
     var stats;
-    var font;
+    
+    var fontTTF = {
+        simsun:'',
+        heiti:''
+    };
 
     
 
@@ -47,8 +48,8 @@ function showCadJson(){
        
     
 
-        var promise = runAsync().then(function () {
-            
+        var promise = runAsync().then(function (res) {
+
             loadData(data);
             
         });
@@ -64,11 +65,14 @@ function showCadJson(){
             var loader = new TTFLoader();
             var fontLoader = new THREE.FontLoader();
             var promise = new Promise(function (resolve, reject) {
-                
-            loader.load(FontDataTTF,function(fnt){
-                font = fontLoader.parse(fnt);
-                resolve(font);
-            }); 
+                loader.load(FontDataSimsun,function(fnt){
+                    fontTTF.simsun = fontLoader.parse(fnt);
+                }); 
+
+                loader.load(FontDataHeiti,function(fnt){
+                    fontTTF.heiti = fontLoader.parse(fnt);
+                    resolve(fontTTF);
+                }); 
             });
             return promise;
     }
@@ -138,13 +142,19 @@ function showCadJson(){
                 case "DxfMText":
                     var context = element.simplifiedText;
                     var size = element.size;
-                    generateText(context,size,color,matrix,element.boxWidth,element.boxHeight);
+                    var fontStyle = element.fontStyle;
+                    var boxWidth = element.boxWidth;
+                    var boxHeight = element.boxHeight;
+                    var attachmentPoint = element.attachmentPoint;
+                    generateText(context,size,color,matrix,fontStyle,boxWidth,boxHeight,null,attachmentPoint);
     
                     break;
                 case "DxfText":
                     var context = element.simplifiedText;
                     var size = element.size;
-                    generateText(context,size,color,matrix);
+                    var fontStyle = element.fontStyle;
+                    var alignMentPoint1 = new THREE.Vector3().fromArray(element.alignMentPoint1.split(',').map(Number));
+                    generateText(context,size,color,matrix,fontStyle,null,null,alignMentPoint1,null);
 
                     break;
                 default:
@@ -181,8 +191,8 @@ function showCadJson(){
     function initCamera(){
 
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 30, 100000); // 2147483647
-        camera.position.set(5000.621222857644+3000,1749.05239794147+2000,13000);
-        var target = new THREE.Vector3(5000.621222857644+3000,1749.05239794147+2000,0);
+        camera.position.set(8000,4000,50000);
+        var target = new THREE.Vector3(8000,4000,0);
         
         controls = new OrbitControls(camera, render.domElement);
         controls.target = target;
@@ -355,23 +365,53 @@ function showCadJson(){
     
     
     //生成文字
-    function generateText(context,size,color,matrix,boxWidth,boxHeight){
+    function generateText(context,size,color,matrix,fontStyle,boxWidth,boxHeight,alignMentPoint1,attachmentPoint){
     
         //TTF读取方法
 
         var material = new THREE.MeshBasicMaterial( {color: color});
     
+        var font;   
+
+        switch(fontStyle){
+            case "宋体":
+                font = fontTTF.simsun;
+                break;
+            case "黑体":
+                font = fontTTF.heiti;
+                break;
+            default:
+                font = fontTTF.simsun;   
+                console.log('没有指示字体，默认为宋体'); 
+                break;
+        }
+
+        
         var shapes = font.generateShapes( context, size );
         var geometry = new THREE.ShapeBufferGeometry( shapes );
    
         var mesh = new THREE.Mesh( geometry, material );
         
-        if(context == "图 纸 目 录"){
-            mesh.translateX(-boxWidth/2);
-            mesh.translateY(-boxHeight/2);
+
+
+        if(alignMentPoint1){
+
+            mesh.position.copy(alignMentPoint1)
+        }else{
+
+            mesh.applyMatrix(matrix);
+        
+            /* if(context == '图 纸 目 录'){
+                translateMesh(attachmentPoint,mesh,-size*6,-size);
+            } */
+    
+           translateMesh(attachmentPoint,mesh,-size*6,-size);
+           //translateMesh(attachmentPoint,mesh,width,height);
+
+
         }
 
-        mesh.applyMatrix(matrix)
+
         scene.add( mesh ); 
 
 
@@ -391,6 +431,55 @@ function showCadJson(){
         scene.add( mesh );
   
      */
+    }
+
+
+    function translateMesh(attachmentPoint,mesh,width,height){
+        switch(attachmentPoint){
+            case 'TopCenter':
+                //上中
+                mesh.translateX(width/2);
+                mesh.translateY(height);
+                break;
+            case 'TopRight':
+                //上右
+                mesh.translateX(width);
+                mesh.translateY(height);
+                break;
+
+            case 'MiddleLeft':
+                //左中
+                mesh.translateY(height/2);
+                break;
+
+            case 'MiddleCenter':	
+                //正中
+                mesh.translateX(width/2);
+                mesh.translateY(height/2);
+                break;
+
+            case 'MiddleRight':	
+                //右中
+                mesh.translateX(width);
+                mesh.translateY(height/2);
+                break;
+
+            case 'BottomLeft':
+                //下左
+                
+                break;
+
+            case 'BottomCenter':	
+                //下中
+                mesh.translateX(width/2);
+                break;
+
+            case 'BottomRight':
+                //右下
+                mesh.translateX(width);
+                break;
+
+           }
     }
     
     
