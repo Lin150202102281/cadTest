@@ -27,13 +27,15 @@ function showCadJson(){
     //var canvasRender;
     var controls;
     var stats;
+
     
     var fontTTF = {
         simsun:'',
         heiti:''
     };
 
-    
+    var blockInf = [];
+
 
     window.onload=function(){
         stats = initStats();
@@ -51,10 +53,11 @@ function showCadJson(){
         var promise = runAsync().then(function (res) {
 
             loadData(data);
-            
+
+            calHandle();
+
         });
 
-    
 
         
         renderScene();
@@ -90,8 +93,8 @@ function showCadJson(){
                 case "DxfLine":
                     var startPoint = new THREE.Vector3().fromArray(element.startPoint.split(',').map(Number));
                     var endPoint = new THREE.Vector3().fromArray(element.endPoint.split(',').map(Number));
-          
-                    generateLine(startPoint,endPoint,matrix,color);
+                    var parentHandle = element.parentHandle;
+                    generateLine(parentHandle,startPoint,endPoint,matrix,color);
 
                     break;
                 case "DxfLwPolyline":
@@ -100,8 +103,10 @@ function showCadJson(){
                     element.vertices.forEach(function(vector){
                         pointArray.push(new THREE.Vector3().fromArray(vector.split(',').map(Number)));
                     })
+                    var parentHandle = element.parentHandle;
 
-                    generatePolyLine(pointArray,closed,color,matrix);
+                    generatePolyLine(parentHandle,pointArray,closed,color,matrix);
+                    
 
                     break;
                 case "DxfCircle":
@@ -109,7 +114,10 @@ function showCadJson(){
                     var radius = element.radius;
                     var startAngle = 2 * Math.PI;
                     var endAngle = 0;
-                    generateCurve(element.type,center.x,center.y,radius,radius,startAngle,endAngle,color,matrix);
+                    var parentHandle = element.parentHandle;
+
+                    generateCurve(parentHandle,element.type,center.x,center.y,radius,radius,startAngle,endAngle,color,matrix);
+                    
                 
                     break;
                 case "DxfArc":
@@ -118,7 +126,9 @@ function showCadJson(){
                     var radius = element.radius;
                     var startAngle = element.startAngle;
                     var endAngle = element.endAngle;
-                    generateCurve(element.type,center.x,center.y,radius,radius,startAngle,endAngle,color,matrix);
+                    var parentHandle = element.parentHandle;
+
+                    generateCurve(parentHandle,element.type,center.x,center.y,radius,radius,startAngle,endAngle,color,matrix);
                 
                     break;
                 case "DxfEllipse":
@@ -128,7 +138,10 @@ function showCadJson(){
                     var yRadius = new THREE.Vector3().fromArray(element.minorAxisEndPoint.split(',').map(Number));
                     var startAngle = element.startParameter;
                     var endAngle = element.endParameter;
-                    generateCurve(element.type,center.x,center.y,xRadius.x,yRadius.y,startAngle,endAngle,color,matrix);
+                    var parentHandle = element.parentHandle;
+
+                    generateCurve(parentHandle,element.type,center.x,center.y,yRadius.x,xRadius.y,startAngle,endAngle,color,matrix);
+                    
                 
                     break;
                 case "DxfSpline":
@@ -136,7 +149,9 @@ function showCadJson(){
                     element.fitPoints.forEach(function(fitPoint){
                         fitPointArray.push(new THREE.Vector3().fromArray(fitPoint.split(',').map(Number)));
                     })
-                    generateSpline(fitPointArray,color,matrix);
+                    var parentHandle = element.parentHandle;
+
+                    generateSpline(parentHandle,fitPointArray,color,matrix);
 
                     break;
                 case "DxfMText":
@@ -146,7 +161,9 @@ function showCadJson(){
                     var boxWidth = element.boxWidth;
                     var boxHeight = element.boxHeight;
                     var attachmentPoint = element.attachmentPoint;
-                    generateText(context,size,color,matrix,fontStyle,boxWidth,boxHeight,null,attachmentPoint);
+                    var parentHandle = element.parentHandle;
+
+                    generateText(parentHandle,context,size,color,matrix,fontStyle,boxWidth,boxHeight,null,attachmentPoint);
     
                     break;
                 case "DxfText":
@@ -154,8 +171,29 @@ function showCadJson(){
                     var size = element.size;
                     var fontStyle = element.fontStyle;
                     var alignMentPoint1 = new THREE.Vector3().fromArray(element.alignMentPoint1.split(',').map(Number));
-                    generateText(context,size,color,matrix,fontStyle,null,null,alignMentPoint1,null);
+                    var parentHandle = element.parentHandle;
+                   
+                    generateText(parentHandle,context,size,color,matrix,fontStyle,null,null,alignMentPoint1,null,element.rotationAngle);
 
+                    break;
+                case "DxfInsert":
+                    var insertPoint = new THREE.Vector3().fromArray(element.insertPoint.split(',').map(Number))
+                    var rotationAngle = element.rotationAngle;
+                    var parentHandle = element.parentHandle;
+                    var insertName = element.insertName;
+                    var nowHandle = element.nowHandle;
+                    var insertScale = new THREE.Vector3().fromArray(element.insertScale.split(',').map(Number))
+                    blockInf.push(
+                        {
+                            parentHandle:parentHandle,
+                            insertPoint:insertPoint,
+                            rotationAngle:rotationAngle,
+                            insertName:insertName,
+                            nowHandle:nowHandle,
+                            nextParentHandle:parentHandle,
+                            insertScale:insertScale,
+                        }
+                    )
                     break;
                 default:
                     console.log('not exist'+element.type);
@@ -185,7 +223,7 @@ function showCadJson(){
         
         document.getElementById('webgl-output').appendChild(render.domElement);
         window.addEventListener('resize', onWindowResize, false);
-        
+
     }
 
     function initCamera(){
@@ -205,41 +243,41 @@ function showCadJson(){
         X_geometry.vertices.push(new THREE.Vector3(0,0,0));
         X_geometry.vertices.push(new THREE.Vector3(1000000*2,0,0));
         var X = new THREE.Line(X_geometry, new THREE.LineBasicMaterial({color: 0xff0000}));
-        X.position.set(1000,0,0);
+        X.position.set(-9000,-10000,0);
     
     
         var X1_geometry = new THREE.Geometry();
         X1_geometry.vertices.push(new THREE.Vector3(0,0,0));
         X1_geometry.vertices.push(new THREE.Vector3(1000,0,0));
         var X1 = new THREE.Line(X1_geometry, new THREE.LineBasicMaterial({color: 0x9400D3}));
-        X1.position.set(0,0,0);
+        X1.position.set(-10000,-10000,0);
     
     
         var Y_geometry = new THREE.Geometry();
         Y_geometry.vertices.push(new THREE.Vector3(0, 0, 0));
         Y_geometry.vertices.push(new THREE.Vector3(0, 1000000*2, 0));
         var Y = new THREE.Line(Y_geometry, new THREE.LineBasicMaterial({color: 0x00ff00}));
-        Y.position.set(0,1000,0);
+        Y.position.set(-10000,-9000,0);
     
         var Y1_geometry = new THREE.Geometry();
         Y1_geometry.vertices.push(new THREE.Vector3(0, 0, 0));
         Y1_geometry.vertices.push(new THREE.Vector3(0, 1000, 0));
         var Y1 = new THREE.Line(Y1_geometry, new THREE.LineBasicMaterial({color: 0x9400D3}));
-        Y1.position.set(0,0,0);
+        Y1.position.set(-10000,-10000,0);
     
     
         var Z_geometry = new THREE.Geometry();
         Z_geometry.vertices.push(new THREE.Vector3(0,0,0));
         Z_geometry.vertices.push(new THREE.Vector3(0,0,1000000*2));
         var Z = new THREE.Line(Z_geometry, new THREE.LineBasicMaterial({color: 0x0000ff}));
-        Z.position.set(0,0,1000);
+        Z.position.set(-10000,-10000,1000);
     
     
         var Z1_geometry = new THREE.Geometry();
         Z1_geometry.vertices.push(new THREE.Vector3(0,0,0));
         Z1_geometry.vertices.push(new THREE.Vector3(0,0,1000));
         var Z1 = new THREE.Line(Z1_geometry, new THREE.LineBasicMaterial({color: 0x9400D3}));
-        Z1.position.set(0,0,0);
+        Z1.position.set(-10000,-10000,0);
     
     
         scene.add(X,Y,Z,X1,Y1,Z1);
@@ -262,6 +300,8 @@ function showCadJson(){
         document.getElementById('stats-output').append(stats.domElement);
         return stats;
     }
+
+
     
     /** 当浏览器窗口大小变化时触发 */
     function onWindowResize() {
@@ -270,9 +310,30 @@ function showCadJson(){
         render.setSize(window.innerWidth, window.innerHeight);
     }
     
+
+    function calHandle(mesh,pHandle){
+       
+   
+
+
+        blockInf.forEach(function(element){
+            if(element.nowHandle == pHandle){
+                //console.log(new THREE.Matrix4().setPosition(element.insertPoint))
+                mesh.applyMatrix(new THREE.Matrix4().setPosition(element.insertPoint));
+                mesh.rotateZ(element.rotationAngle);
+                mesh.applyMatrix(new THREE.Matrix4().scale(element.insertScale));
+                pHandle = element.parentHandle;
+                calHandle(mesh,pHandle);
+                
+            }
+        }) 
+
+
+ 
+     }
     
     //生成线
-    function generateLine(startPoint,endPoint,matrix,color){
+    function generateLine(parentHandle,startPoint,endPoint,matrix,color){
         var material=new THREE.LineBasicMaterial({color:color})
         var geometry = new THREE.Geometry();
     
@@ -284,13 +345,15 @@ function showCadJson(){
         
         line.applyMatrix(matrix);
         scene.add(line);
+
+          calHandle(line,parentHandle);
     }
     
     
     
     
     //生成多段线
-    function generatePolyLine(polyLineArray,closed,color,matrix){
+    function generatePolyLine(parentHandle,polyLineArray,closed,color,matrix){
         var points3D = new THREE.Geometry();
         
         for(var i=0;i<polyLineArray.length;i++){
@@ -307,18 +370,20 @@ function showCadJson(){
         var line2 = new THREE.Line(points3D, new THREE.LineBasicMaterial({color: color}));
         line2.applyMatrix(matrix);
         scene.add(line2);
+        calHandle(line2,parentHandle);
     }
     
     
     
     
     //生成圆、椭圆
-    function generateCurve(type,xPoint,yPoint,xRadius,yRadius,startAngle,endAngle,color,matrix){
+    function generateCurve(parentHandle,type,xPoint,yPoint,xRadius,yRadius,startAngle,endAngle,color,matrix){
        var point1 = startAngle < endAngle ? startAngle : endAngle;
        var point2 = startAngle > endAngle ? startAngle : endAngle;
        var clockWise = (type == "DxfEllipse") ? false : true;
-        // "startAngle":5.0532356704726649,
-        // "endAngle":2.9318941931801068,
+        
+
+  
 
         var curve = new THREE.EllipseCurve(
             xPoint,  yPoint,            // aX, aY
@@ -338,6 +403,8 @@ function showCadJson(){
     
         mesh.applyMatrix(matrix);
         scene.add(mesh)
+        
+        calHandle(mesh,parentHandle);
     
     }
     
@@ -345,7 +412,7 @@ function showCadJson(){
     
     
     //生成样条曲线
-    function generateSpline(fitPointArray,color,matrix){
+    function generateSpline(parentHandle,fitPointArray,color,matrix){
         var curve = new THREE.SplineCurve(fitPointArray);
         
         var points = curve.getPoints( 50 );
@@ -358,14 +425,30 @@ function showCadJson(){
 
         mesh.applyMatrix(matrix);
         scene.add(mesh);
+        calHandle(mesh,parentHandle);
+
     }
     
  
     
+    function selectFont(fontStyle){
+        switch(fontStyle){
+            case "宋体":
+                return fontTTF.simsun;
+
+            case "黑体":
+                return fontTTF.heiti;
+
+            default:
+                console.log('没有指示字体，默认为宋体'); 
+                return fontTTF.simsun;   
+
+        }
+    }
     
     
     //生成文字
-    function generateText(context,size,color,matrix,fontStyle,boxWidth,boxHeight,alignMentPoint1,attachmentPoint){
+    function generateText(parentHandle,context,size,color,matrix,fontStyle,boxWidth,boxHeight,alignMentPoint1,attachmentPoint,rotationAngle){
     
         //TTF读取方法
 
@@ -373,19 +456,7 @@ function showCadJson(){
     
         var font;   
 
-        switch(fontStyle){
-            case "宋体":
-                font = fontTTF.simsun;
-                break;
-            case "黑体":
-                font = fontTTF.heiti;
-                break;
-            default:
-                font = fontTTF.simsun;   
-                console.log('没有指示字体，默认为宋体'); 
-                break;
-        }
-
+        font = selectFont(fontStyle);
         
         var shapes = font.generateShapes( context, size );
         var geometry = new THREE.ShapeBufferGeometry( shapes );
@@ -396,26 +467,25 @@ function showCadJson(){
 
         if(alignMentPoint1){
 
-            mesh.position.copy(alignMentPoint1)
+            mesh.position.copy(alignMentPoint1);
+            mesh.rotateZ(rotationAngle);
         }else{
 
             mesh.applyMatrix(matrix);
         
-            /* if(context == '图 纸 目 录'){
+            /*if(context == '图 纸 目 录'){
                 translateMesh(attachmentPoint,mesh,-size*6,-size);
-            } */
+            }*/
     
-           translateMesh(attachmentPoint,mesh,-size*6,-size);
-           //translateMesh(attachmentPoint,mesh,width,height);
+           //translateMesh(attachmentPoint,mesh,-size*6,-size);
+           translateMesh(attachmentPoint,mesh,-boxWidth,-boxHeight/2);
 
 
         }
 
 
         scene.add( mesh ); 
-
-
-
+        calHandle(mesh,parentHandle);
 
 
         //JSON读取方法
@@ -490,10 +560,13 @@ function showCadJson(){
        
         if(colorIndex >0 && colorIndex<255){
             var color = new THREE.Color(colorsMapper.getByACI(colorIndex).rgb).getHex ();
+            
             return color;
         }else if(colorIndex == 0){
+
             return 0xFFFFFF;
         }else{
+            
             return colorIndex;
         }
         
