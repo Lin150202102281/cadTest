@@ -6,7 +6,9 @@ const OrbitControls = require('../lib/OrbitControls');
 const data = require('../res/data/dxfdata.json');
 const colorsMapper = require('autocad-colors-index');
 const TTFLoader = require('../lib/TTFLoader');
-
+const LineGeometry = require('../lib/line/LineGeometry');
+const LineMaterial = require('../lib/line/LineMaterial');
+const Line2 = require('../lib/line/Line2');
 //const FontDataJSON = require('../res/fonts/json/BenMoJSON.json');
 //const FontDataJSON = require('../res/fonts/json/fzyt.json');
 //const FontDataJSON = require('../res/fonts/json/helvetiker_regular.typeface.json');
@@ -35,7 +37,10 @@ function showCadJson(){
     };
 
     var blockInf = [];
-
+    
+    var countCircle = 0;
+    var countLine = 0;
+    var countLw = 0;
 
     window.onload=function(){
         stats = initStats();
@@ -47,169 +52,19 @@ function showCadJson(){
         //坐标轴
         initAxis();
     
-       
     
-
-        var promise = runAsync().then(function (res) {
+       var promise = runAsync().then(function (res) {
 
             loadData(data);
 
-            calHandle();
+        }); 
 
-        });
 
+       
 
         
         renderScene();
     }
-   
-
-    function runAsync () {
-            var loader = new TTFLoader();
-            var fontLoader = new THREE.FontLoader();
-            var promise = new Promise(function (resolve, reject) {
-                loader.load(FontDataSimsun,function(fnt){
-                    fontTTF.simsun = fontLoader.parse(fnt);
-                }); 
-
-                loader.load(FontDataHeiti,function(fnt){
-                    fontTTF.heiti = fontLoader.parse(fnt);
-                    resolve(fontTTF);
-                }); 
-            });
-            return promise;
-    }
-        
-
-
-
-
-    function loadData(data){
-       
-        data.forEach(function(element){
-            var matrix = (new THREE.Matrix4().fromArray(element.transform.split(',').map(Number))).transpose() || new THREE.Matrix4();
-            var color = element.color ? calColor(element.color) : 0xFFFFFF;
-            switch(element.type){
-                case "DxfLine":
-                    var startPoint = new THREE.Vector3().fromArray(element.startPoint.split(',').map(Number));
-                    var endPoint = new THREE.Vector3().fromArray(element.endPoint.split(',').map(Number));
-                    var parentHandle = element.parentHandle;
-                    generateLine(parentHandle,startPoint,endPoint,matrix,color);
-
-                    break;
-                case "DxfLwPolyline":
-                    var pointArray = [];
-                    var closed = element.closed == "False" ? false : true;
-                    element.vertices.forEach(function(vector){
-                        pointArray.push(new THREE.Vector3().fromArray(vector.split(',').map(Number)));
-                    })
-                    var parentHandle = element.parentHandle;
-
-                    generatePolyLine(parentHandle,pointArray,closed,color,matrix);
-                    
-
-                    break;
-                case "DxfCircle":
-                    var center = new THREE.Vector3().fromArray(element.center.split(',').map(Number));
-                    var radius = element.radius;
-                    var startAngle = 2 * Math.PI;
-                    var endAngle = 0;
-                    var parentHandle = element.parentHandle;
-
-                    generateCurve(parentHandle,element.type,center.x,center.y,radius,radius,startAngle,endAngle,color,matrix);
-                    
-                
-                    break;
-                case "DxfArc":
-                       
-                    var center = new THREE.Vector3().fromArray(element.center.split(',').map(Number));
-                    var radius = element.radius;
-                    var startAngle = element.startAngle;
-                    var endAngle = element.endAngle;
-                    var parentHandle = element.parentHandle;
-
-                    generateCurve(parentHandle,element.type,center.x,center.y,radius,radius,startAngle,endAngle,color,matrix);
-                
-                    break;
-                case "DxfEllipse":
-                        
-                    var center = new THREE.Vector3().fromArray(element.center.split(',').map(Number));
-                    var xRadius = new THREE.Vector3().fromArray(element.majorAxisEndPoint.split(',').map(Number));
-                    var yRadius = new THREE.Vector3().fromArray(element.minorAxisEndPoint.split(',').map(Number));
-                    var startAngle = element.startParameter;
-                    var endAngle = element.endParameter;
-                    var parentHandle = element.parentHandle;
-
-                    generateCurve(parentHandle,element.type,center.x,center.y,yRadius.x,xRadius.y,startAngle,endAngle,color,matrix);
-                    
-                
-                    break;
-                case "DxfSpline":
-                    var fitPointArray = [];
-                    element.fitPoints.forEach(function(fitPoint){
-                        fitPointArray.push(new THREE.Vector3().fromArray(fitPoint.split(',').map(Number)));
-                    })
-                    var parentHandle = element.parentHandle;
-
-                    generateSpline(parentHandle,fitPointArray,color,matrix);
-
-                    break;
-                case "DxfMText":
-                    var context = element.simplifiedText;
-                    var size = element.size;
-                    var fontStyle = element.fontStyle;
-                    var boxWidth = element.boxWidth;
-                    var boxHeight = element.boxHeight;
-                    var attachmentPoint = element.attachmentPoint;
-                    var parentHandle = element.parentHandle;
-
-                    generateText(parentHandle,context,size,color,matrix,fontStyle,boxWidth,boxHeight,null,attachmentPoint);
-    
-                    break;
-                case "DxfText":
-                    var context = element.simplifiedText;
-                    var size = element.size;
-                    var fontStyle = element.fontStyle;
-                    var alignMentPoint1 = new THREE.Vector3().fromArray(element.alignMentPoint1.split(',').map(Number));
-                    var parentHandle = element.parentHandle;
-                   
-                    generateText(parentHandle,context,size,color,matrix,fontStyle,null,null,alignMentPoint1,null,element.rotationAngle);
-
-                    break;
-                case "DxfInsert":
-                    var insertPoint = new THREE.Vector3().fromArray(element.insertPoint.split(',').map(Number))
-                    var rotationAngle = element.rotationAngle;
-                    var parentHandle = element.parentHandle;
-                    var insertName = element.insertName;
-                    var nowHandle = element.nowHandle;
-                    var insertScale = new THREE.Vector3().fromArray(element.insertScale.split(',').map(Number))
-                    blockInf.push(
-                        {
-                            parentHandle:parentHandle,
-                            insertPoint:insertPoint,
-                            rotationAngle:rotationAngle,
-                            insertName:insertName,
-                            nowHandle:nowHandle,
-                            nextParentHandle:parentHandle,
-                            insertScale:insertScale,
-                        }
-                    )
-                    break;
-                default:
-                    console.log('not exist'+element.type);
-                break;      
-
-
-            }
-
-        })
-
-
-
-    }
-
-
-
 
     function initRenderer(){
         scene = new THREE.Scene();
@@ -228,7 +83,7 @@ function showCadJson(){
 
     function initCamera(){
 
-        camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 30, 100000); // 2147483647
+        camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 30, 100000); // 2147483647
         camera.position.set(8000,4000,50000);
         var target = new THREE.Vector3(8000,4000,0);
         
@@ -280,6 +135,7 @@ function showCadJson(){
         Z1.position.set(-10000,-10000,0);
     
     
+
         scene.add(X,Y,Z,X1,Y1,Z1);
     } 
 
@@ -310,27 +166,239 @@ function showCadJson(){
         render.setSize(window.innerWidth, window.innerHeight);
     }
     
-
-    function calHandle(mesh,pHandle){
-       
    
 
+    function runAsync () {
+            var loader = new TTFLoader();
+            var fontLoader = new THREE.FontLoader();
+            var promise = new Promise(function (resolve, reject) {
+                loader.load(FontDataSimsun,function(fnt){
+                    fontTTF.simsun = fontLoader.parse(fnt);
+                }); 
 
+                loader.load(FontDataHeiti,function(fnt){
+                    fontTTF.heiti = fontLoader.parse(fnt);
+                    resolve(fontTTF);
+                }); 
+            });
+            return promise;
+    }
+        
+
+
+
+
+    function loadData(data){
+       
+        data.forEach(function(element){
+            var matrix = (new THREE.Matrix4().fromArray(element.Transform.split(',').map(Number))).transpose() || new THREE.Matrix4();
+            var color = element.Color ? calColor(element.Color) : 0xFFFFFF;
+            switch(element.Type){
+                case "DxfPoint":
+                    var position = new THREE.Vector3().fromArray(element.Position.split(',').map(Number));
+                    generatePoint(parentHandle,position,matrix,color);
+
+                    break;
+                case "DxfLine":
+                    var startPoint = new THREE.Vector3().fromArray(element.StartPoint.split(',').map(Number));
+                    var endPoint = new THREE.Vector3().fromArray(element.EndPoint.split(',').map(Number));
+                    var parentHandle = element.ParentHandle;
+                    generateLine(parentHandle,startPoint,endPoint,matrix,color);
+                    countLine++;
+                    break;
+                case "DxfSolid":
+                    var pointArray = [];
+                    var closed = (element.Closed == "False") ? false : true;
+                    element.Points.forEach(function(vector){
+                        pointArray.push(new THREE.Vector3().fromArray(vector.split(',').map(Number)));
+                    })
+                    var parentHandle = element.ParentHandle;
+
+                    generatePolyLine(parentHandle,pointArray,closed,color,matrix);
+
+                case "DxfLwPolyline":
+                    if(element.Vertices){
+                        var pointArray = [];
+                        var closed = element.Closed == "False" ? false : true;
+                        element.Vertices.forEach(function(vector){
+                            pointArray.push(new THREE.Vector3().fromArray(vector.split(',').map(Number)));
+                            //pointArray.push(vector.split(',').map(Number));
+                        })
+                        var parentHandle = element.ParentHandle;
+    
+                        generatePolyLine(parentHandle,pointArray,closed,color,matrix);
+                        countLw++;
+                    }
+                    
+                    break;
+                case "DxfCircle":
+                    var center = new THREE.Vector3().fromArray(element.Center.split(',').map(Number));
+                    var radius = element.Radius;
+                    var startAngle =  0;
+                    var endAngle =2 * Math.PI;
+                    var parentHandle = element.ParentHandle;
+
+                    generateCurve(parentHandle,element.Type,center.x,center.y,radius,radius,startAngle,endAngle,color,matrix);
+                    
+                    countCircle ++;
+                    break;
+                case "DxfArc":
+                       
+                    var center = new THREE.Vector3().fromArray(element.Center.split(',').map(Number));
+                    var radius =element.Radius;
+                    var startAngle = element.StartAngle ;
+                    var endAngle = element.EndAngle;
+                    var parentHandle = element.ParentHandle;
+                   
+                    generateCurve(parentHandle,element.Type,center.x,center.y,radius,radius,startAngle,endAngle,color,matrix);
+                
+                    break;
+                case "DxfEllipse":
+                        
+                    var center = new THREE.Vector3().fromArray(element.Center.split(',').map(Number));
+                    var xRadius = new THREE.Vector3().fromArray(element.MajorAxisEndPoint.split(',').map(Number));
+                    var yRadius = new THREE.Vector3().fromArray(element.MinorAxisEndPoint.split(',').map(Number));
+                    var startAngle = element.StartParameter;
+                    var endAngle = element.EndParameter;
+                    var parentHandle = element.parentHandle;
+
+                   generateCurve(parentHandle,element.Type,center.x,center.y,yRadius.x,xRadius.y,startAngle,endAngle,color,matrix);
+                    
+                
+                    break;
+                case "DxfSpline":
+                    var fitPointArray = [];
+                    element.FitPoints.forEach(function(fitPoint){
+                        fitPointArray.push(new THREE.Vector3().fromArray(fitPoint.split(',').map(Number)));
+                    })
+                    var parentHandle = element.ParentHandle;
+
+                    generateSpline(parentHandle,fitPointArray,color,matrix);
+
+                    break;
+                case "DxfMText":
+                    var context = element.SimplifiedText;
+                    var size = element.Size;
+                    var fontStyle = element.FontStyle;
+                    var boxWidth = element.BoxWidth;
+                    var boxHeight = element.BoxHeight;
+                    var attachmentPoint = element.AttachmentPoint;
+                    var parentHandle = element.ParentHandle;
+
+                    generateText(parentHandle,context,size,color,matrix,fontStyle,boxWidth,boxHeight,null,attachmentPoint);
+    
+                    break;
+                case "DxfText":
+                    var context = element.SimplifiedText;
+                    var size = element.Size;
+                    var fontStyle = element.FontStyle;
+                    var alignMentPoint1 = new THREE.Vector3().fromArray(element.AlignMentPoint1.split(',').map(Number));
+                    var parentHandle = element.ParentHandle;
+                   
+                    generateText(parentHandle,context,size,color,matrix,fontStyle,null,null,alignMentPoint1,null,element.RotationAngle);
+
+                    break;
+                case "DxfInsert":
+                    var insertPoint = new THREE.Vector3().fromArray(element.InsertPoint.split(',').map(Number));
+                    var rotationAngle = element.RotationAngle;
+                    var parentHandle = element.ParentHandle;
+                    var insertName = element.InsertName;
+                    var nowHandle = element.NowHandle;
+                    var insertScale = new THREE.Vector3().fromArray(element.InsertScale.split(',').map(Number));
+                    blockInf.push(
+                        {
+                            parentHandle:parentHandle,
+                            insertPoint:insertPoint,
+                            rotationAngle:rotationAngle,
+                            insertName:insertName,
+                            nowHandle:nowHandle,
+                            nextParentHandle:parentHandle,
+                            insertScale:insertScale,
+                            matrix:matrix,
+                        }
+                    );
+                    break;
+                case "Linear":
+                    var insertPoint = new THREE.Vector3().fromArray(element.InsertPoint.split(',').map(Number));
+                    var rotationAngle = element.RotationAngle;
+                    var parentHandle = element.ParentHandle;
+                    var insertName = element.InsertName;
+                    var nowHandle = element.NowHandle;
+                    var insertScale = new THREE.Vector3().fromArray(element.InsertScale.split(',').map(Number));
+                    blockInf.push(
+                        {
+                            parentHandle:parentHandle,
+                            insertPoint:insertPoint,
+                            rotationAngle:rotationAngle,
+                            insertName:insertName,
+                            nowHandle:nowHandle,
+                            nextParentHandle:parentHandle,
+                            insertScale:insertScale,
+                            matrix:matrix,
+                        }
+                    );
+                    break;
+                case "DxfTable":
+                    var insertPoint = new THREE.Vector3().fromArray(element.InsertPoint.split(',').map(Number));
+                    var rotationAngle = element.RotationAngle;
+                    var parentHandle = element.ParentHandle;
+                    var insertName = element.InsertName;
+                    var nowHandle = element.NowHandle;
+                    var insertScale = new THREE.Vector3().fromArray(element.InsertScale.split(',').map(Number));
+                    blockInf.push(
+                        {
+                            parentHandle:parentHandle,
+                            insertPoint:insertPoint,
+                            rotationAngle:rotationAngle,
+                            insertName:insertName,
+                            nowHandle:nowHandle,
+                            nextParentHandle:parentHandle,
+                            insertScale:insertScale,
+                            matrix:matrix,
+                        }
+                    );
+                    break;
+                default:
+                    console.log('not exist:'+element.Type);
+                break;      
+
+
+            }
+
+        })
+
+    }
+
+
+
+    function calBlockHandle(mesh,pHandle){
+       
         blockInf.forEach(function(element){
             if(element.nowHandle == pHandle){
-                //console.log(new THREE.Matrix4().setPosition(element.insertPoint))
                 mesh.applyMatrix(new THREE.Matrix4().setPosition(element.insertPoint));
-                mesh.rotateZ(element.rotationAngle);
                 mesh.applyMatrix(new THREE.Matrix4().scale(element.insertScale));
+                mesh.rotateZ(element.rotationAngle);
+                mesh.applyMatrix(element.matrix);
                 pHandle = element.parentHandle;
-                calHandle(mesh,pHandle);
-                
+                calBlockHandle(mesh,pHandle);
             }
         }) 
 
-
- 
      }
+
+    //生成点
+    function generatePoint(parentHandle,position,matrix,color){
+       
+        var pointGeometry = new THREE.SphereBufferGeometry(10,32,32);
+        var material = new THREE.MeshBasicMaterial({color: color});
+        var pointSphere = new THREE.Mesh(pointGeometry, material);
+
+        pointSphere.applyMatrix(matrix);
+        pointSphere.position.copy(position);
+        scene.add(pointSphere);
+        calBlockHandle(pointSphere,parentHandle);
+
+    }
     
     //生成线
     function generateLine(parentHandle,startPoint,endPoint,matrix,color){
@@ -346,7 +414,7 @@ function showCadJson(){
         line.applyMatrix(matrix);
         scene.add(line);
 
-          calHandle(line,parentHandle);
+        calBlockHandle(line,parentHandle);
     }
     
     
@@ -370,7 +438,48 @@ function showCadJson(){
         var line2 = new THREE.Line(points3D, new THREE.LineBasicMaterial({color: color}));
         line2.applyMatrix(matrix);
         scene.add(line2);
-        calHandle(line2,parentHandle);
+        calBlockHandle(line2,parentHandle);
+
+
+
+      /*   var geometry = new LineGeometry();
+        // 顶点坐标构成的数组pointArr
+
+        var pointArr ;
+        for(var i=0;i<polyLineArray.length;i++){
+            polyLineArray.push(0);
+           
+        }
+        for(var i=0;i<polyLineArray.length-1;i++){
+            pointArr = polyLineArray[i].concat(polyLineArray[i+1])
+        }
+
+        if(closed == true){
+            pointArr = polyLineArray[polyLineArray.length-1].concat(polyLineArray[0])
+        }
+
+
+        geometry.setPositions(pointArr);
+
+        var material  = new LineMaterial( {
+        color: 0xdd2222,
+
+        linewidth: 5,
+        } );
+
+        material.resolution.set(window.innerWidth,window.innerHeight);
+
+        var line = new Line2(geometry, material);
+
+        scene.add(line);
+        calBlockHandle(line2,parentHandle);
+
+ */
+
+
+
+
+
     }
     
     
@@ -378,18 +487,12 @@ function showCadJson(){
     
     //生成圆、椭圆
     function generateCurve(parentHandle,type,xPoint,yPoint,xRadius,yRadius,startAngle,endAngle,color,matrix){
-       var point1 = startAngle < endAngle ? startAngle : endAngle;
-       var point2 = startAngle > endAngle ? startAngle : endAngle;
-       var clockWise = (type == "DxfEllipse") ? false : true;
-        
-
   
-
         var curve = new THREE.EllipseCurve(
             xPoint,  yPoint,            // aX, aY
             xRadius, yRadius,           // xRadius, yRadius
-            point1  , point2,  // aStartAngle, aEndAngle
-            clockWise,            // aClockwise
+            startAngle  ,endAngle,  // aStartAngle, aEndAngle
+            false,            // aClockwise
             0                 // aRotation
         );
         
@@ -398,13 +501,12 @@ function showCadJson(){
         
         var material = new THREE.LineBasicMaterial( { color : color } );
         
-        // Create the final object to add to the scene
         var mesh = new THREE.Line( geometry, material );
     
         mesh.applyMatrix(matrix);
         scene.add(mesh)
         
-        calHandle(mesh,parentHandle);
+        calBlockHandle(mesh,parentHandle);
     
     }
     
@@ -413,19 +515,22 @@ function showCadJson(){
     
     //生成样条曲线
     function generateSpline(parentHandle,fitPointArray,color,matrix){
-        var curve = new THREE.SplineCurve(fitPointArray);
+        if(fitPointArray.length>0){
+            var curve = new THREE.SplineCurve(fitPointArray);
         
-        var points = curve.getPoints( 50 );
-        var geometry = new THREE.BufferGeometry().setFromPoints( points );
+            var points = curve.getPoints( 50 );
+            var geometry = new THREE.BufferGeometry().setFromPoints( points );
+            
+            var material = new THREE.LineBasicMaterial( { color : color } );
+            
+            // Create the final object to add to the scene
+            var mesh = new THREE.Line( geometry, material );
+    
+            mesh.applyMatrix(matrix);
+            scene.add(mesh);
+            calBlockHandle(mesh,parentHandle);
+        }
         
-        var material = new THREE.LineBasicMaterial( { color : color } );
-        
-        // Create the final object to add to the scene
-        var mesh = new THREE.Line( geometry, material );
-
-        mesh.applyMatrix(matrix);
-        scene.add(mesh);
-        calHandle(mesh,parentHandle);
 
     }
     
@@ -440,7 +545,7 @@ function showCadJson(){
                 return fontTTF.heiti;
 
             default:
-                console.log('没有指示字体，默认为宋体'); 
+                //console.log('没有指示字体，默认为宋体'); 
                 return fontTTF.simsun;   
 
         }
@@ -458,7 +563,7 @@ function showCadJson(){
 
         font = selectFont(fontStyle);
         
-        var shapes = font.generateShapes( context, size );
+        var shapes = font.generateShapes( context, size/2 );
         var geometry = new THREE.ShapeBufferGeometry( shapes );
    
         var mesh = new THREE.Mesh( geometry, material );
@@ -470,14 +575,7 @@ function showCadJson(){
             mesh.position.copy(alignMentPoint1);
             mesh.rotateZ(rotationAngle);
         }else{
-
-            mesh.applyMatrix(matrix);
-        
-            /*if(context == '图 纸 目 录'){
-                translateMesh(attachmentPoint,mesh,-size*6,-size);
-            }*/
-    
-           //translateMesh(attachmentPoint,mesh,-size*6,-size);
+           mesh.applyMatrix(matrix);
            translateMesh(attachmentPoint,mesh,-boxWidth,-boxHeight/2);
 
 
@@ -485,12 +583,12 @@ function showCadJson(){
 
 
         scene.add( mesh ); 
-        calHandle(mesh,parentHandle);
+        calBlockHandle(mesh,parentHandle);
 
 
         //JSON读取方法
        
-  /*    var material = new THREE.MeshBasicMaterial({color: color});
+    /*   var material = new THREE.MeshBasicMaterial({color: color});
 
         var shapes = new THREE.Font(FontDataJSON).generateShapes( context, size );
         var geometry = new THREE.ShapeBufferGeometry( shapes );
@@ -500,7 +598,7 @@ function showCadJson(){
         mesh.applyMatrix(matrix)
         scene.add( mesh );
   
-     */
+    */
     }
 
 
